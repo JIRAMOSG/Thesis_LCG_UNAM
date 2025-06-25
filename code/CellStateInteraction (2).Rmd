@@ -1,0 +1,185 @@
+---
+title: "CellStateInteraction"
+author: "Ramos-Galguera, Johana Itzel."
+date: "2025-01-17"
+output: rmdformats::downcute
+
+---
+
+```{r setup, include=FALSE}
+# Load libraries
+library(Seurat)
+library(ggplot2)
+library(CellChat)
+library(patchwork)
+
+### lumaquin
+
+
+```
+
+
+```{r}
+library(CellChat)
+library(patchwork)
+load("0- Lumaquin scRNAseq fish melanoma tumours - SeuratObject.rda")
+Idents(scLumaquin) <- scLumaquin@meta.data$tumor_type
+meta <- data.frame(labels = labels, row.names = names(labels))
+
+#data.input<-scLumaquin[["RNA"]]$counts
+data.input<-scLumaquin[["SCT"]]@data
+labels <- Idents(scLumaquin)
+meta <- data.frame(labels = labels, row.names = names(labels)) # create a dataframe of the cell labels
+cellChat <- createCellChat(object = scLumaquin, group.by = "ident", assay = "SCT")
+
+```
+
+
+```{r}
+# Cargar la base de datos CellChat para el pez cebra
+CellChatDB <- CellChatDB.zebrafish
+
+# Mostrar las categorías en la base de datos
+showDatabaseCategory(CellChatDB)
+dplyr::glimpse(CellChatDB$interaction)
+
+# Subconjuntar la base de datos para usar solo las interacciones de "Secreted Signaling"
+CellChatDB.use <- subsetDB(CellChatDB, search = "Secreted Signaling", key = "annotation")
+
+# Asignar la base de datos subconjuntada al objeto CellChat
+cellchat@DB <- CellChatDB.use
+
+# Identificar genes sobreexpresados
+cellchat <- identifyOverExpressedGenes(cellchat)
+
+# Subconjuntar los datos de expresión de genes de señalización para ahorrar costos computacionales
+cellchat <- subsetData(cellchat) # Este paso es necesario incluso si se usa toda la base de datos
+
+# Calcular la probabilidad de comunicación
+cellchat <- computeCommunProb(cellchat)
+
+```
+
+
+
+```{r}
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+# Subset the expression data of signaling genes to save computation cost
+#cellchat <- subsetData(cellchat) # This step is necessary even if using the whole database
+
+# Print a summary of the CellChat object to verify
+print(cellchat)
+cellchat <- computeCommunProb(cellchat, type = "triMean")
+cellchat <- filterCommunication(cellchat, min.cells = 10)
+```
+
+
+
+```{r}
+# subset the expression data of signaling genes for saving computation cost
+cellchat1 <- subsetData(cellchat) # This step is necessary even if using the whole database
+future::plan("multisession", workers = 4) # do parallel
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+#> The number of highly variable ligand-receptor pairs used for signaling inference is 692
+
+execution.time = Sys.time() - ptm
+print(as.numeric(execution.time, units = "secs"))
+```
+
+
+```{r}
+pathways.show <- c("CXCL") 
+netVisual_aggregate(cellchat, signaling = pathways.show, layout = "chord")
+netVisual_heatmap(cellchat, signaling = pathways.show, color.heatmap = "Reds")
+```
+
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# Instalar y cargar las librerías necesarias
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+  install.packages("BiocManager")
+}
+BiocManager::install(c("Seurat", "fgsea", "GO.db"))
+
+library(Seurat)
+library(fgsea)
+library(GO.db)
+
+# Cargar los datos de conteo desde un archivo CSV
+counts <- read.csv("C:/Users/jramosgalguera/Downloads/GSE201378_scRNAseq_counts.csv", row.names = 1)
+
+# Crear un objeto Seurat
+scLumaquin <- CreateSeuratObject(counts = counts)
+
+# Calcular el porcentaje de genes mitocondriales
+scLumaquin[["percent.mt"]] <- PercentageFeatureSet(scLumaquin, pattern = "^MT-")
+
+# Filtrar células basado en nFeature_RNA y percent.mt
+scLumaquin <- subset(scLumaquin, subset = nFeature_RNA > 200 & percent.mt < 30)
+
+# Filtrado de células
+scLumaquin <- subset(scLumaquin, subset = nFeature_RNA > 200 & percent.mt < 30)
+
+# Normalización de datos usando SCTransform
+scLumaquin <- SCTransform(scLumaquin, verbose = FALSE)
+
+# Reducción de la dimensionalidad
+scLumaquin <- RunPCA(scLumaquin, verbose = FALSE)
+scLumaquin <- RunUMAP(scLumaquin, dims = 1:30, verbose = FALSE)
+
+# Clustering
+scLumaquin <- FindNeighbors(scLumaquin, dims = 1:30, verbose = FALSE)
+scLumaquin <- FindClusters(scLumaquin, resolution = 0.4, verbose = FALSE)
+
+# Anotación de clústeres usando genes marcadores específicos de tipo celular en zebrafish
+marker_genes <- FindAllMarkers(scLumaquin, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+
+# Análisis de genes diferencialmente expresados para el análisis de vías
+tumor_clusters <- c("Cluster1", "Cluster2")  # Reemplaza con los nombres de tus clústeres de tumor
+deg <- FindMarkers(scLumaquin, ident.1 = tumor_clusters[1], ident.2 = tumor_clusters[2], min.pct = 0.25)
+
+# Filtrar genes ribosomales y con p-value < 0.05
+deg_filtered <- deg[deg$p_val < 0.05 & !grepl("^RPS|^RPL", rownames(deg)), ]
+
+# Mapeo de ortólogos entre zebrafish y humanos usando DIOPT
+# Assumimos que existe una función llamada diopt_mapping que mapea los genes
+# orthologs <- diopt_mapping(rownames(deg_filtered))
+
+# Análisis de enriquecimiento de conjuntos de genes usando fgsea
+msigdb <- msigdbr(species = "Homo sapiens", category = "C5", subcategory = "GO:BP")
+gene_list <- sort(deg_filtered$avg_log2FC, decreasing = TRUE)
+fgsea_results <- fgsea(pathways = msigdb, stats = gene_list, minSize = 15, maxSize = 500)
+
+# Cálculo del Tsoi Melanocytic Program Score usando AddModuleScore
+program_genes <- c("Gene1", "Gene2", "Gene3")  # Reemplaza con los genes del programa de Tsoi
+scLumaquin <- AddModuleScore(scLumaquin, features = list(program_genes), name = "Tsoi_Melanocytic_Program")
+
+# Guardar el objeto Seurat para análisis futuros
+saveRDS(scLumaquin, file = "scLumaquin.rds")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r}
+ptm = Sys.time()
+par(mfrow=c(1,1))
+pathways.show=c("KIT")
+netVisual_heatmap(cellchat, signaling = pathways.show, color.heatmap = "Reds")
+#> Do heatmap based on a single object
+plotGeneExpression(cellchat, signaling = pathways.show, enriched.only = TRUE, type = "violin")
+# Compute the network centrality scores
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP") # the slot 'netP' means the inferred intercellular communication network of signaling pathways
+# Visualize the computed centrality scores using heatmap, allowing ready identification of major signaling roles of cell groups
+netAnalysis_signalingRole_network(cellchat, signaling = pathways.show, width = 8, height = 2.5, font.size = 10)
+```
+
+
+
