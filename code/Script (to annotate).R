@@ -1,6 +1,3 @@
-
-rownames(scLumaquin)
-
 fish_mel_sig <- list(
   Melanocytic = DR2HS_genes[DR2HS_genes$`Human_Symbol_DIOPT≥2` %in% subset(Tsoi_mel_sig,Signature == "Melanocytic")$Gene,]$Zebrafish_Symbol,
   Transitory = DR2HS_genes[DR2HS_genes$`Human_Symbol_DIOPT≥2` %in% subset(Tsoi_mel_sig,Signature == "Transitory")$Gene,]$Zebrafish_Symbol,
@@ -110,8 +107,8 @@ VlnPlot(Srt_Skin, features = "ENSDARG00000012405", group.by = "cell_type_broad")
 Idents(Srt_Skin) <- Srt_Skin$cell_type_broad
 ma <- FindAllMarkers(Srt_Skin)
 
-save(scLumaquin, file = "/Volumes/White_lab/zz OMIC data/5 Other transcriptomics /Melanoma/Tumours/Cutaneous melanoma/Zebrafish tumours - White Lab/Lumaquin/scRNA-seq/0- Lumaquin scRNAseq fish melanoma tumours - SeuratObject.rda")
-setwd("/Volumes/White_lab/zz OMIC data/5 Other transcriptomics /Melanoma/Tumours/Cutaneous melanoma/Zebrafish tumours - White Lab/Lumaquin/scRNA-seq/")
+save(scLumaquin, file = "0- Lumaquin scRNAseq fish melanoma tumours - SeuratObject.rda")
+setwd("Lumaquin/scRNA-seq/")
 
 library(Seurat)
 library(ShinyCell)
@@ -126,5 +123,3 @@ makeShinyApp(scLumaquin, scConf, gene.mapping = F,
              default.gene1 = "mitfa",
              default.gene2 = "ubb") 
 
-
-/Volumes/White_lab/zz OMIC data/5 Other transcriptomics /Melanoma/Tumours/Cutaneous melanoma/Zebrafish tumours - White Lab/Lumaquin/scRNA-seq/shinyApp
