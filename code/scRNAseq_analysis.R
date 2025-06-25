@@ -1,22 +1,19 @@
+#This code is a template to do single-cell RNAseq
+# here you can find a brief description of the steps and this codes was adapted to the methos used in the original work where the data was published
 # for some details you can refer to the Seurat vignettes https://satijalab.org/seurat/
 
 #### ONLY FIRST USED AND IF REQUIRED ####
-install.packages("readr")
-install.packages('Seurat')
-install.packages('SeuratObject')
-
-
+#install.packages("readr")
+#install.packages('Seurat')
+#install.packages('SeuratObject')
 #### END OF ONLY FIRST USED AND IF REQUIRED ####
 
 #### Load the data - to adapt according to what are your inputs
 library(Seurat)
 library(SeuratObject)
 
-
-#### 1) if input = matrix (a table with all cells in column and genes in row)
-
 library(readr)
-Matrix <- as.data.frame(read_csv("~path/matrix.csv")) #load data, might take a bit of time
+Matrix <- as.data.frame(read_csv("matrix.csv")) #load data, might take a bit of time
 #set gene names as row names. To adapt according to your matrix
 #if error occurs because of duplicate, wrap the argument in make.unique()
 rownames(Matrix) <- Matrix[,which(colnames(Matrix)== "name of the column containing the gene names"] 
@@ -26,7 +23,7 @@ Matrix <- Matrix[,-which(colnames(Matrix)== "name of the column containing the g
 # If you want to keep these information, create a data frame. # Gene.annotations <- Matrix[, c("column to keep 1", "column to keep2", etc.)]
 
 #if you have some metadata available
-Metadata <- as.data.frame(read_csv("~/path/_Metadata.csv")) #load the metadata, and transform them as data.frame
+Metadata <- as.data.frame(read_csv("Metadata.csv")) #load the metadata, and transform them as data.frame
 rownames(Metadata) <- Metadata$Cell_names #put as rownames the exact same names as used in the Matrix column names
 
 # Create Seurat Object, 
@@ -35,25 +32,6 @@ seurat <- CreateSeuratObject(counts = raw_matrix, meta.data = Metadata,
                              min.features = 500, # keep only cells expressing  at least y different genes. Important,
                                         # to only retain cells that are informative, expressing sufficient genes.
                              min.cells = 3) # keep only genes expressed in at least x cells. You can adapt this value at your convenience
-
-  ##go to the next section, skip 2 and 3)
-
-#### 2) if input = 10X files
-# you need to have in a folder 3 files: 1) barcodes.tsv.gz (list of cell barcodes), 
-      # 2) features.tsv.gz (list of genes), and 3) matrix.mtx.gz (count data). Do not unzip your files!
-seurat <- Read10X(data.dir = "path/folder containing the data/") # load the data
-
-#### 3) if input = h5 files
-seurat <- Read10X_h5("path/folder containing the data/file.h5", use.names = TRUE, unique.features = TRUE)
-
-
-# for 2 and 3)
-seurat <- CreateSeuratObject(counts = seurat, project = "project_name", # adding the project name is useful when merging seurat objects
-                             min.cells = 3,  # keep only genes expressed in at least x cells. You can adapt this value at your convenience
-                             min.features = 500) # keep only cells expressing  at least y different genes. Important,
-      # to only retain cells that are informative, expressing sufficient genes. 500 might be low depending on the situation
-
-
 
 #### Quality controls, have to be adapted to your situation
 ### 1) calculate the percentage of mitochondrial reads 
