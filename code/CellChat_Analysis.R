@@ -1,0 +1,208 @@
+### ##############################################
+#author: "Johana Itzel Ramos-Galguera"
+#date: "2025-08-08"
+# based on https://github.com/sqjin/CellChat/blob/master/tutorial/CellChat-vignette.Rmd
+# and https://github.com/theislab/interaction-tools
+
+library(CellChat)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+setwd("/home/johana/Downloads")
+load("0- Lumaquin scRNAseq fish melanoma tumours - SeuratObject.rda")
+getwd()
+
+
+Idents(scLumaquin) <- scLumaquin@meta.data$tumor_type
+scLumaquin <- SCTransform(scLumaquin)
+data.input<-scLumaquin[["SCT"]]@data
+labels <- Idents(scLumaquin)
+meta <- data.frame(labels = labels, row.names = names(labels)) 
+
+# create a dataframe of the cell labels
+cellchat <- createCellChat(object = scLumaquin, group.by = "ident", assay = "SCT")
+#Using data normalized
+
+# 4. Use zebrafish ligand-receptor database
+CellChatDB <- CellChatDB.zebrafish
+cellchat@DB <- CellChatDB
+
+#future::plan("multisession", workers = 4) # do parallel
+
+
+# Preprocessing for CellChat and
+# subset the expression data of signaling genes for saving computation cost
+
+# use all CellChatDB except for "Non-protein Signaling" for cell-cell communication analysis
+CellChatDB.use <- subsetDB(CellChatDB)
+# set the used database in the object
+cellchat@DB <- CellChatDB.use
+
+cellchat <- subsetData(cellchat)
+cellchat <- identifyOverExpressedGenes(cellchat)
+cellchat <- identifyOverExpressedInteractions(cellchat)
+
+# Compute cell-cell communication probability
+cellchat <- computeCommunProb(cellchat, raw.use = TRUE)
+# triMean is used for calculating the average gene expression per cell group. 
+
+cellchat <- filterCommunication(cellchat, min.cells = 100)
+# Filter significant interactions (p-value < 0.05 is default)
+# Subset communication table to significant interactions for downstream visualization & export
+df.net <- subsetCommunication(cellchat, slot.name = "net", thresh = 0.05)
+write.csv(df.net, "cellchat_zebrafish_significant_interactions.csv", row.names = FALSE)
+
+
+# Compute communication at pathway level
+cellchat <- computeCommunProbPathway(cellchat)
+cellchat <- aggregateNet(cellchat)
+
+groupSize <- as.numeric(table(cellchat@idents))
+
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_circle(cellchat@net$count, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Number of interactions")
+netVisual_circle(cellchat@net$weight, vertex.weight = groupSize, weight.scale = T, label.edge= F, title.name = "Interaction weights/strength")
+
+
+mat <- cellchat@net$weight
+par(mfrow = c(2,3), xpd=TRUE)
+for (i in 1:nrow(mat)) {
+  mat2 <- matrix(0, nrow = nrow(mat), ncol = ncol(mat), dimnames = dimnames(mat))
+  mat2[i, ] <- mat[i, ]
+  netVisual_circle(mat2, vertex.weight = groupSize, weight.scale = T, edge.weight.max = max(mat), title.name = rownames(mat)[i])
+}
+
+netVisual_heatmap(cellchat, measure = "weight")
+
+
+pdf("CellChat_12_pathways_grid1000.pdf", width = 12, height = 12)
+par(mfrow = c(4, 4), mar = c(1, 1, 3, 1), xpd = TRUE)
+for (pathway in cellchat@netP$pathways) {
+  netVisual_aggregate(cellchat, signaling = pathway, layout = "circle")
+}
+dev.off()
+
+par(mfrow = c(4, 4), mar = c(1, 1, 3, 1), xpd = TRUE)
+for (pathway in cellchat@netP$pathways) {
+  netVisual_aggregate(cellchat, signaling = pathway, layout = "circle")
+}
+
+# Bubble plot for significant interactions
+pdf("cellchat_zebrafish_bubble1000.pdf", width=12, height=8)
+netVisual_bubble(cellchat, remove.isolate = TRUE)
+dev.off()
+netVisual_bubble(cellchat, remove.isolate = TRUE)
+pathways.show <- cellchat@netP$pathways
+
+
+pdf("cellchat_zebrafish_CXCL_network1000.pdf", width=12, height=8)
+cxcl_pathway <- c("CXCL") 
+netVisual_aggregate(cellchat, signaling = cxcl_pathway, layout = "chord")
+netVisual_heatmap(cellchat, signaling = cxcl_pathway, color.heatmap = "Reds")
+dev.off()
+
+pdf("cellchat_zebrafish_CXCL_centrality1000.pdf", width=12, height=8)
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+netAnalysis_signalingRole_network(cellchat, signaling = cxcl_pathway, width = 8, height = 2.5, font.size = 10)
+dev.off()
+
+
+#Plot the signaling gene expression distribution using violin plot
+pdf("cellchat_zebrafish_CXCL_plotGeneExpression.pdf", width=12, height=8)
+plotGeneExpression(cellchat, signaling = "CXCL", enriched.only = TRUE, type = "violin")
+dev.off()
+
+pdf("cellchat_zebrafish_CXCL_LRpairs.pdf", width=12, height=8)
+netAnalysis_contribution(cellchat, signaling = "CXCL")
+dev.off()
+
+pdf("cellchat_zebrafish_ANGPTL_network1000.pdf", width=12, height=8)
+angptl_pathway <- c("ANGPTL") 
+netVisual_aggregate(cellchat, signaling = angptl_pathway, layout = "chord")
+netVisual_heatmap(cellchat, signaling = angptl_pathway, color.heatmap = "Reds")
+dev.off()
+
+pdf("cellchat_zebrafish_ANGPTL_centrality1000.pdf", width=12, height=8)
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+netAnalysis_signalingRole_network(cellchat, signaling = angptl_pathway, width = 8, height = 2.5, font.size = 10)
+dev.off()
+
+
+#Plot the signaling gene expression distribution using violin plot
+pdf("cellchat_zebrafish_ANGPTL_plotGeneExpression.pdf", width=12, height=8)
+plotGeneExpression(cellchat, signaling = "ANGPTL", enriched.only = TRUE, type = "violin")
+dev.off()
+
+pdf("cellchat_zebrafish_ANGPTL_LRpairs.pdf", width=12, height=8)
+netAnalysis_contribution(cellchat, signaling = "ANGPTL")
+dev.off()
+
+
+pdf("cellchat_zebrafish_APP_network1000.pdf", width=12, height=8)
+app_pathway <- c("APP") 
+netVisual_aggregate(cellchat, signaling = app_pathway, layout = "chord")
+netVisual_heatmap(cellchat, signaling = app_pathway, color.heatmap = "Reds")
+dev.off()
+
+pdf("cellchat_zebrafish_APP_centrality1000.pdf", width=12, height=8)
+cellchat <- netAnalysis_computeCentrality(cellchat, slot.name = "netP")
+netAnalysis_signalingRole_network(cellchat, signaling = app_pathway, width = 8, height = 2.5, font.size = 10)
+dev.off()
+
+
+
+#Plot the signaling gene expression distribution using violin plot
+pdf("cellchat_zebrafish_APP_plotGeneExpression.pdf", width=12, height=8)
+plotGeneExpression(cellchat, signaling = "APP", enriched.only = TRUE, type = "violin")
+dev.off()
+
+pdf("cellchat_zebrafish_APP_LRpairs.pdf", width=12, height=8)
+netAnalysis_contribution(cellchat, signaling = "APP")
+dev.off()
+
+
+
+library(NMF)
+library(ggalluvial)
+
+## OUTGOING PATTERNS
+
+pdf("cellchat_zebrafish_OutgoingSignals.pdf", width=12, height=8)
+selectK(cellchat, pattern = "outgoing")
+dev.off()
+
+nPatterns = 3
+pdf("cellchat_zebrafish_OutgoingPatterns.pdf", width=12, height=8)
+cellchat <- identifyCommunicationPatterns(cellchat, pattern = "outgoing", k = nPatterns)
+dev.off()
+
+pdf("cellchat_zebrafish_OutgoingPatternsriver.pdf", width=12, height=8)
+netAnalysis_river(cellchat, pattern = "outgoing")
+dev.off()
+
+# INCOMING PATTERNS 
+
+pdf("cellchat_zebrafish_incomingSignals.pdf", width=12, height=8)
+selectK(cellchat, pattern = "incoming")
+dev.off()
+
+nIPatterns = 4
+pdf("cellchat_zebrafish_incomingPatterns.pdf", width=12, height=8)
+cellchat <- identifyCommunicationPatterns(cellchat, pattern = "incoming", k = nIPatterns)
+dev.off()
+
+pdf("cellchat_zebrafish_incomingPatternsriver.pdf", width=12, height=8)
+netAnalysis_river(cellchat, pattern = "incoming")
+dev.off()
+
+
+# Save CellChat object for future analysis
+saveRDS(cellchat, file = "cellchat_zebrafish.rds")
+
+sessionInfo()
+# Notes to take into account:
+# - Filtering for significant interactions is handled by subsetCommunication(cellchat, thresh = 0.05), 
+#   which keeps only interactions with p < 0.05 (default CellChat significance).
+# - Adjust the "thresh" parameter if you want a different p-value cutoff.
+# - Replace "celltype" in createCellChat if your cell identity column is named differently.
+# - All plots and results are saved automatically as PDFs and CSV.
