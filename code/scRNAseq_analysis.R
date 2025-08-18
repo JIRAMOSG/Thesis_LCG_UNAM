@@ -1,6 +1,7 @@
 #This code is a template to do single-cell RNAseq
 # here you can find a brief description of the steps and this codes was adapted to the methos used in the original work where the data was published
 # for some details you can refer to the Seurat vignettes https://satijalab.org/seurat/
+# This script is based on the approach used by hte White group.
 
 #### ONLY FIRST USED AND IF REQUIRED ####
 #install.packages("readr")
