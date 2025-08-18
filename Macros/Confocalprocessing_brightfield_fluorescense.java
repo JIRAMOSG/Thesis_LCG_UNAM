@@ -31,7 +31,8 @@ rename("Green");
 run("Z Project...", "projection=[Max Intensity] all");
 selectWindow("C4-"+Title);
 rename("Red");
-run("Z Project...", "projection=[Max Intensity] all");*/
+run("Z Project...", "projection=[Max Intensity] all");
+*/
 //run("Merge Channels...", "c1=MAX_Red c2=MAX_Green c3=MAX_Blue c4=TMPT2 create");
 run("Merge Channels...", "c1=MAX_Red c4=TPMT2 create ignore");
 saveAs("Tiff", dir+Title+".tif");
