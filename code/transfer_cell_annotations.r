@@ -25,6 +25,10 @@ predictions <- TransferData(
   dims = 1:25
 )
 
+
+
+RunUMAP(seurat2_highConf, reduction = "pca", dims = 1:30)
+
 # 4. Add the predicted labels as metadata to seurat2
 seurat2 <- AddMetaData(Weiss, metadata = predictions)
 
